@@ -1,0 +1,237 @@
+{{define "head"}}{{end}}
+
+
+
+{{define "body"}}
+
+
+<div style="margin-left: 15px;">
+
+    <div>
+
+        <h2 style="display: inline-block;">
+            {{.Org}}
+        </h2>
+        &emsp13; <small style="display: inline-block;"><a href="/logout">Log Out</a></small>
+
+    </div>
+
+    {{ if eq .FlashAttitude "GOOD" }}
+        <div>
+            <p style="background-color: lightgreen; width: fit-content; padding: 10px;">
+                {{.FlashMessage}}
+            </p>
+        </div>
+    {{end}}
+    {{ if eq .FlashAttitude "BAD" }}
+        <div>
+            <p style="background-color: lightcoral; width: fit-content; padding: 10px;">
+                {{.FlashMessage}}
+            </p>
+        </div>
+    {{end}}
+
+    {{ if .MailboxInfo }}
+    <table class="table table-bordered">
+        <tr class="table-head">
+            <th>Mailbox Information</th>
+            <th></th>
+        </tr>
+
+        <tr>
+            <td><b>Name</b></td>
+            <td>{{.MailboxInfo.Name}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Address</b></td>
+            <td>{{.MailboxInfo.Address}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Expires On</b></td>
+            <td>{{.MailboxInfo.ExpiresOn}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Active</b></td>
+            <td>{{.MailboxInfo.IsActive}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Last Login</b></td>
+            <td>{{.MailboxInfo.LastLoginAt}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Password Recovery Email</b></td>
+            <td>{{.MailboxInfo.PasswordRecoveryEmail}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Storage Usage</b></td>
+            <td>{{.MailboxInfo.StorageUsage}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Activated At</b></td>
+            <td>{{.MailboxInfo.ActivatedAt}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Domain</b></td>
+            <td>{{.MailboxInfo.DomainName}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Local Part</b></td>
+            <td>{{.MailboxInfo.LocalPart}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Expireable</b></td>
+            <td>{{.MailboxInfo.Expireable}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Remove Upon Expiry</b></td>
+            <td>{{.MailboxInfo.RemoveUponExpiry}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Internal</b></td>
+            <td>{{.MailboxInfo.IsInternal}}</td>
+        </tr>
+
+        <tr>
+            <td><b>May Send</b></td>
+            <td>{{.MailboxInfo.MaySend}}</td>
+        </tr>
+
+        <tr>
+            <td><b>May Receive</b></td>
+            <td>{{.MailboxInfo.MayReceive}}</td>
+        </tr>
+
+        <tr>
+            <td><b>IMAP Access</b></td>
+            <td>{{.MailboxInfo.MayAccessIMAP}}</td>
+        </tr>
+
+        <tr>
+            <td><b>POP3 Access</b></td>
+            <td>{{.MailboxInfo.MayAccessPOP3}}</td>
+        </tr>
+
+        <tr>
+            <td><b>ManageSieve Access</b></td>
+            <td>{{.MailboxInfo.MayAccessManageSieve}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Spam Action</b></td>
+            <td>{{.MailboxInfo.SpamAction}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Spam Aggressiveness</b></td>
+            <td>{{.MailboxInfo.SpamAggressiveness}}</td>
+        </tr>
+
+        <tr>
+            <td><b>Changed At</b></td>
+            <td>{{.MailboxInfo.ChangedAt}}</td>
+        </tr>
+    </table>
+    {{else}}
+    <table class="table table-bordered">
+        <tr class="table-head">
+            <th>Mailbox Information</th>
+            <th></th>
+        </tr>
+        <tr>
+            <td>No mailbox information available.</td>
+            <td></td>
+        </tr>
+    </table>
+    {{end}}
+
+    <table class="table table-bordered">
+        <tr class="table-head">
+            <th>Directory Information</th>
+            <th></th>
+        </tr>
+        <tr>
+            <td><b>Name</b></td>
+            <td>{{.User.Name}}</td>
+        </tr>
+        <tr>
+            <td><b>First Name</b></td>
+            <td>{{.User.GivenName}}</td>
+        </tr>
+        <tr>
+            <td><b>Last Name</b></td>
+            <td>{{.User.FamilyName}}</td>
+        </tr>
+        <tr>
+            <td><b>Username</b></td>
+            <td>{{.User.PreferredUsername}}</td>
+        </tr>
+        <tr>
+            <td><b>Assigned Email</b></td>
+            <td>{{.User.EmailMigadu}}</td>
+        </tr>
+    </table>
+
+    {{ if .MailboxInfo }}
+    <form action="/my/passwd" method="post" autocomplete="off" style="margin-top: 15px; display: inline;">
+
+        <table class="table table-bordered">
+            <tr class="table-head">
+                <th>Change Mailbox Password</th>
+                <th></th>
+            </tr>
+            <tr>
+                <td><label for="username">Username</label></td>
+                <td><input id="username" name="username" type="text" value="{{.User.EmailMigadu}}" readonly autocomplete="off" /></td>
+            </tr>
+            <tr>
+                <td><label for="new-password">Mailbox Password</label></td>
+                <td><input id="new-password" name="new_password" type="password" autocomplete="new-password" required /></td>
+            </tr>
+            <tr>
+                <td>Submit</td>
+                <td style="padding-bottom: .3rem;"><button style="padding-top: .02rem; border: .1rem solid black; border-radius: 0; outline: 0; box-shadow: 2px 2px lightgray;" type="submit">Set Password</button></td>
+            </tr>
+        </table>
+        
+    </form>
+    {{end}}
+
+    <div>
+        <p>
+            <a href="https://webmail.migadu.com/" target="_blank">Webmail</a><br>
+            <a href="https://migadu.com/guides/" target="_blank">Setup Desktop and Mobile clients</a>
+        </p>
+    </div>
+</div>
+
+<style>
+    .table {
+        width: auto !important;
+        display: inline-table;
+        margin-bottom: 15px;
+    }
+
+    .table-responsive {
+        display: inline-block;
+        width: auto;
+    }
+
+     @media only screen and (max-width: 700px) {
+        .table {
+            min-width: 90vw;
+        }
+     }
+</style>
+{{end}}

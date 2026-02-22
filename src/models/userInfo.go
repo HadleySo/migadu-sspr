@@ -1,0 +1,17 @@
+package models
+
+type UserInfo struct {
+	Name              string   `json:"name"`
+	Groups            []string `json:"groups"`
+	PreferredUsername string   `json:"preferred_username"`
+	GivenName         string   `json:"given_name"`
+	FamilyName        string   `json:"family_name"`
+	EmailMigadu       string
+}
+
+type OptionalGroups struct {
+	GroupName     string
+	RequiredGroup string
+	DisplayName   string
+	MemberManager bool
+}
