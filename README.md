@@ -2,6 +2,10 @@
 
 Allow users to view Mailbox information for Migadu and reset their passwords.
 
+<p align="left">
+    <img src="docs/screenshot.png" width="650">
+</p>
+
 ## Install
 
 Download the latest [release](https://github.com/HadleySo/migadu-sspr/releases) 
