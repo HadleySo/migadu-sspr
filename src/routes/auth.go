@@ -3,9 +3,9 @@ package routes
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,19 +16,24 @@ import (
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
-var appRelyingParty rp.RelyingParty
+var (
+	rpMutex         sync.Mutex
+	appRelyingParty rp.RelyingParty
+	lastInitErr     error
+	lastInitTime    time.Time
+	retryDelay      = 30 * time.Second
+)
 
-func authRoutes() {
+func getRelyingParty(ctx context.Context, cookieHandler *httphelper.CookieHandler) (rp.RelyingParty, error) {
 
-	// App config
 	SERVER_HOSTNAME := viper.GetString("SERVER_HOSTNAME")
 
 	// OpenID Connect Client
 	clientID := viper.GetString("CLIENT_ID")
 	clientSecret := viper.GetString("CLIENT_SECRET")
 	issuer := viper.GetString("OIDC_WELL_KNOWN")
-	port := viper.GetString("OIDC_SERVER_PORT")
 	scopes := strings.Split(viper.GetString("SCOPES"), " ")
+	port := viper.GetString("OIDC_SERVER_PORT")
 
 	// OIDC URIs
 	var redirectURI string
@@ -38,61 +43,94 @@ func authRoutes() {
 		redirectURI = fmt.Sprintf("%s%v", SERVER_HOSTNAME, auth.CallbackPath)
 	}
 
-	cookieHandler := httphelper.NewCookieHandler([]byte(viper.GetString("SESSION_KEY")), []byte(viper.GetString("SESSION_KEY")), httphelper.WithUnsecure())
-
 	// Set Relying Party settings
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(rp.WithIssuedAtOffset(5 * time.Second)),
 	}
 
+	rpMutex.Lock()
+	defer rpMutex.Unlock()
+
+	// Have a working RP, return it
+	if appRelyingParty != nil {
+		return appRelyingParty, nil
+	}
+
+	// If last attempt failed, only retry after cooldown
+	if time.Since(lastInitTime) < retryDelay {
+		return nil, lastInitErr
+	}
+
+	// Try again
+	lastInitTime = time.Now()
+	rp, err := rp.NewRelyingPartyOIDC(ctx, issuer, clientID, clientSecret, redirectURI, scopes, options...)
+	if err != nil {
+		lastInitErr = err
+		return nil, err
+	}
+
+	// Success
+	appRelyingParty = rp
+	lastInitErr = nil
+	return appRelyingParty, nil
+}
+
+func authRoutes() {
+
+	cookieHandler := httphelper.NewCookieHandler([]byte(viper.GetString("SESSION_KEY")), []byte(viper.GetString("SESSION_KEY")), httphelper.WithUnsecure())
+
 	state := func() string {
 		return uuid.New().String()
 	}
 
-	// OIDC RelyingParty Create
-	type ctxKey struct{}
-	logger := slog.Default()
-	ctx := context.WithValue(context.Background(), ctxKey{}, logger)
-	RelyingParty, idpInitErr := rp.NewRelyingPartyOIDC(ctx, issuer, clientID, clientSecret, redirectURI, scopes, options...)
-	if idpInitErr != nil {
-		fmt.Printf("error creating provider %s", idpInitErr.Error()) // TODO: add logging
-	}
-	appRelyingParty = RelyingParty
-
 	// Register routes
 	Router.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		if idpInitErr != nil {
-			http.Error(w, "IdP Unavailable, try again later - service unavailable", http.StatusServiceUnavailable)
+		ctx := r.Context()
+		relyingParty, err := getRelyingParty(ctx, cookieHandler)
+		if err != nil {
+			http.Error(w, "IdP unavailable, try again later", http.StatusServiceUnavailable)
 			return
 		}
-		rp.AuthURLHandler(state, appRelyingParty, rp.WithPromptURLParam("force"))(w, r)
+
+		rp.AuthURLHandler(state, relyingParty, rp.WithPromptURLParam("force"))(w, r)
 	}).Methods("GET")
-	Router.HandleFunc(auth.CallbackPath, rp.CodeExchangeHandler(rp.UserinfoCallback(auth.MarshallUserInfo), appRelyingParty)).Methods("GET", "POST")
+
+	Router.HandleFunc(auth.CallbackPath, func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		relyingParty, err := getRelyingParty(ctx, cookieHandler)
+		if err != nil {
+			http.Error(w, "IdP unavailable, try again later", http.StatusServiceUnavailable)
+			return
+		}
+
+		rp.CodeExchangeHandler(
+			rp.UserinfoCallback(auth.MarshallUserInfo),
+			relyingParty,
+		)(w, r)
+	}).Methods("GET", "POST")
 
 	Router.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
-		if idpInitErr != nil {
-			http.Error(w, "Failed to log out. IdP Unavailable, try again later - service unavailable", http.StatusServiceUnavailable)
-			return
+
+		for _, cookie := range r.Cookies() {
+			http.SetCookie(w, &http.Cookie{
+				Name:     cookie.Name,
+				Value:    "",
+				Path:     "/",
+				Expires:  time.Unix(0, 0),
+				MaxAge:   -1,
+				HttpOnly: true,
+			})
 		}
 
-		handleLogout(w, r)
+		ctx := r.Context()
+		relyingParty, err := getRelyingParty(ctx, cookieHandler)
+		if err != nil {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+		http.Redirect(w, r, relyingParty.GetEndSessionEndpoint(), http.StatusSeeOther)
+
 	}).Methods("GET")
-
-}
-
-func handleLogout(w http.ResponseWriter, r *http.Request) {
-	for _, cookie := range r.Cookies() {
-		http.SetCookie(w, &http.Cookie{
-			Name:     cookie.Name,
-			Value:    "",
-			Path:     "/",
-			Expires:  time.Unix(0, 0),
-			MaxAge:   -1,
-			HttpOnly: true,
-		})
-	}
-
-	http.Redirect(w, r, appRelyingParty.GetEndSessionEndpoint(), http.StatusSeeOther)
 
 }
